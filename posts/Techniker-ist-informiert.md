@@ -1,5 +1,5 @@
 ---
-title: "Techniker ist informiert!"
+title: Techniker ist informiert!
 date: 27.07.2023
 author: "Niels"
 ---
