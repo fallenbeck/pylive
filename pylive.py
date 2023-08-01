@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import locale
 import logging
 import markdown
 import os
@@ -8,9 +9,12 @@ import pprint
 import sys
 
 # Settings for this script. Should be parametrized later.
-POSTSDIR = "posts"
-OUTPUTDIR = "out"
-TEMPLATEDIR = "templates/cno"
+POSTSDIR = "blogs/cno/posts"
+OUTPUTDIR = "blogs/cno/out"
+TEMPLATEDIR = "blogs/cno/templates"
+
+# Output format
+FMT_DATE_OUTPUT = "%A, %d. %B %Y"
 
 IGNOREFILES = ["README", "TEMPLATE"]  # , "helloworld"]
 EXTENSIONS = [".md"]
@@ -20,6 +24,9 @@ log_formatter = logging.Formatter('%(message)s')
 DEFAULT_LOGLEVEL = logging.WARNING
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
+
+# Set locale to de_DE to get german output (day of week, ...)
+locale.setlocale(locale.LC_ALL, "de_DE")
 
 class Post:
     """This object represents a post.
@@ -50,6 +57,17 @@ class Post:
     # preamble as a key-value pair.
     meta: dict[str, str] = {}
 
+    # Date and time of publication
+    date: datetime.datetime = None
+    time: datetime.datetime = None  # unused
+    printable_date: str = None
+
+    # If post is a draft (do not publish)
+    draft: bool = False
+
+    # If post has a valid header section and can be published
+    valid: bool = True
+
     def __init__(self,
                  full_filename: str):
         """The initialization function awaits the markdown text of this blog
@@ -65,6 +83,9 @@ class Post:
         self.meta, self.raw_text = self.__segment(self.raw)
         self.rendered_text = self.__render(self.raw_text)
 
+        # Set additional attributes
+        self.draft = ("draft" in self.meta.keys())
+
     # Define properties ("getters") to get daata from the meta dictionary.
     # If a specified property does not exist in the dictionary the getter
     # functions must return a meaninungful value.
@@ -73,21 +94,17 @@ class Post:
     def title(self) -> str:
         return self.meta.get("title", "Untitled")
 
-    @property
-    def date(self) -> str:
-        return "Heute"
+    # @property
+    # def date(self) -> str:
+    #     return "Heute"
 
     @property
     def html(self) -> str:
         return self.rendered_text
 
-    @property
-    def valid(self) -> bool:
-        return self.__validate_header(self.meta)
-
-    @property
-    def draft(self) -> bool:
-        return "draft" in self.meta.keys()
+    # @property
+    # def draft(self) -> bool:
+    #     return "draft" in self.meta.keys()
 
     def __read_file(self,
                     full_filename: str) -> str:
@@ -172,21 +189,24 @@ class Post:
         for line in header.splitlines():
             key, value = line.split(":", 1)
             # Keys will be stored in lowercase
-            result[key.lower()] = value
+            result[key.lower().strip()] = value.strip()
 
         log.info(f"Found {len(result)} meta key(s): {list(result.keys())}")
         log.debug(pprint.pformat(result))
 
+        # Validate header
         if not self.__validate_header(result):
+            self.valid = False
             raise Exception(f"Invalid/insufficient header/preamble in "
                             f"{self.filename}")
+        else:
+            self.valid = True
 
         return result
 
     def __validate_header(self,
                           header: dict[str, str],
                           required_keys: list[str] = ["title", "date"],
-                          valid_if_draft: bool = True,
                           ) -> bool:
         """Validate header/preamble information.
 
@@ -200,16 +220,44 @@ class Post:
         :rtype:                 bool
         """
         log.info(f"Validate header of {self}")
-        result = True
 
         missing_keys = set(required_keys) - set(header.keys())
         if len(missing_keys) > 0:
             log.error(f"Invalid header! Missing keys: {missing_keys}")
-            result = False
+            self.valid = False
 
-        return result or (valid_if_draft and "draft" in header.keys())
+        # Check if date is in a known format that can be parsed
+        if "date" in header.keys():
+            self.date = self.__parse_date(header["date"])
+            if not self.date:
+                self.valid = False
 
+        return True
 
+    def __parse_date(self,
+                     prefix_date: str) -> datetime.datetime:
+        """
+        """
+        supported_formats: list[str] = [
+                "%d.%m.%y",     # 01.01.23
+                "%d.%m.%Y",     # 01.01.2023
+                ]
+        dt: datetime.datetime = None
+        for fmt in supported_formats:
+            try:
+                dt = datetime.datetime.strptime(prefix_date, fmt)
+            except Exception as e:
+                # log.warning(f"Could not parse {fmt}: {e}")
+                continue
+
+            break
+
+        if dt:
+            log.info(f"Parsed date: {dt}")
+            self.printable_date = dt.strftime(FMT_DATE_OUTPUT)
+            log.info(f"will be printed: {self.printable_date}")
+        else:
+            log.warning(f"Invalid date format: {prefix_date}")
 
     def __render(self,
                  text: str) -> str:
