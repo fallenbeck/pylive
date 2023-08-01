@@ -2,4 +2,8 @@
 
 Static HTML page generator
 
-[Installation Instructions](INSTALL.md)
+## Documentation
+
+Documentation can be found in `doc/`.
+
+  1. [Installation Instructions](doc/INSTALL.md)
