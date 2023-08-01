@@ -1,0 +1,12 @@
+# PyLive configuration file
+input:
+  directory: posts
+
+output:
+  directory: out
+
+templates:
+  directory: templates
+
+publish:
+  cmd: scp -r 
