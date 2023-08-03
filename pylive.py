@@ -15,7 +15,7 @@ from slugify import slugify
 POSTSDIR = "blogs/cno/posts"
 OUTPUTDIR = "blogs/cno/out"
 TEMPLATEDIR = "blogs/cno/templates"
-DEFAULT_LOCALE="de_DE"
+DEFAULT_LOCALE = "de_DE"
 
 # Output format
 # the "-" in %-d will remove the leading 0 (if any)
@@ -26,7 +26,7 @@ EXTENSIONS = [".md"]
 
 # Set up logging
 log_formatter = logging.Formatter('%(message)s')
-#DEFAULT_LOGLEVEL = logging.WARNING
+# DEFAULT_LOGLEVEL = logging.WARNING
 DEFAULT_LOGLEVEL = logging.DEBUG
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
@@ -38,9 +38,9 @@ locale.setlocale(locale.LC_ALL, "de_DE")
 class Post:
     """This object represents a post.
 
-    A post object does not only contain the post's contents (text) but does also
-    chave some meta information such as the title, the post's publish date and
-    the post's author (and maybe others).
+    A post object does not only contain the post's contents (text) but does
+    also have some meta information such as the title, the post's publish date
+    and the post's author (and maybe others).
 
     Each post is represented as a markdown file in the file system.
     """
@@ -50,7 +50,7 @@ class Post:
 
     # Name of the (output) file
     # Will be derived from the input filename
-    #slug: str = ""
+    # slug: str = ""
 
     # Keep the contents of the file in this variable.
     # This contains the original contents used to parse the Post object
@@ -81,7 +81,7 @@ class Post:
 
     # Human-readable string representing the date, i.e.
     # "Donnerstag, 3. August 2023"
-    printable_date: str = None
+    printable_date: str = ""
 
     # If post is a draft
     # This literally means that this script ignores this post
@@ -108,7 +108,6 @@ class Post:
 
         # Set additional attributes
         self.__parse_attributes(self.meta)
-
 
     # Define properties ("getters") to get daata from the meta dictionary.
     # If a specified property does not exist in the dictionary the getter
@@ -291,7 +290,7 @@ class Post:
             log.debug("Mark as draft")
 
     def __parse_date(self,
-                     prefix_date: str) -> datetime.datetime | None:
+                     prefix_date: str) -> datetime.datetime:
         """
         """
         log.debug(f"Create printable date from {prefix_date}")
@@ -319,6 +318,8 @@ class Post:
         else:
             log.error(f"Invalid date format: {prefix_date}")
 
+        return None
+
     LOCALE_LOCK = threading.Lock()
 
     @contextmanager
@@ -339,7 +340,7 @@ class Post:
         result: str = None
         if locale:
             try:
-                with(self.setlocale(locale)):
+                with (self.setlocale(locale)):
                     result = date.strftime(FMT_DATE_OUTPUT)
             except Exception as e:
                 log.warning(f"Could not create printable date in {self.lang}: {e}")
@@ -481,8 +482,7 @@ class PyLive:
             self.write_post(post, "lala.html")
 
     def write_post(self,
-                   post: Post,
-                   output_file: str):
+                   post: Post):
         """Write post as HTML file to specific file.
 
         :param post:        Post to write
@@ -490,7 +490,7 @@ class PyLive:
         :param output_file: Target file to write (in HTML format)
         :type output_file:  str
         """
-        log.debug(f"Write {post}")
+        log.debug(f"Write {post} to {post.slug}")
 
     def get_list_of_posts(self,
                           path: str,
@@ -501,7 +501,7 @@ class PyLive:
 
         """
         # Will hold the post objects
-        #result: list[Post] = []
+        # result: list[Post] = []
         list_of_post_objects: list[Post] = []
 
         log.debug(f"Scan {path} for files with extensions {extensions}, "
@@ -511,7 +511,6 @@ class PyLive:
                 extensions=extensions,
                 ignore=ignore_files,
                 )
-
 
         for post_file in post_files_to_compile:
             post = self.create_post_object(path=self.posts_directory,
