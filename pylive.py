@@ -9,6 +9,7 @@ import pprint
 import sys
 import threading
 from contextlib import contextmanager
+from jinja2 import Environment, FileSystemLoader
 from slugify import slugify
 
 # Settings for this script. Should be parametrized later.
@@ -497,8 +498,9 @@ class PyLive:
                           extensions: list[str],
                           ignore_files: list[str],
                           ) -> list[Post]:
-        """
-
+        """Return list of post objects to be published sorted by the posts'
+        publication date from newest to oldest (newest post is the first element
+                                                in the list).
         """
         # Will hold the post objects
         # result: list[Post] = []
@@ -524,7 +526,35 @@ class PyLive:
                 list_of_post_objects.append(post)
 
         log.warning(f"{len(list_of_post_objects)} post objects created")
+
+        log.debug("Sort list of posts to publish by date")
+        list_of_post_objects = sorted(list_of_post_objects,
+                                      key=lambda p: p.date,
+                                      reverse=True)
+
         return list_of_post_objects
+
+    def write_index(self,
+                    post: Post,
+                    template_file: str,
+                    output_file: str,
+                    ):
+        """
+
+        """
+
+
+    def write_post_file(self,
+                        post: Post,
+                        output_directory: str):
+        """Write post as HTML file to specific file.
+
+        :param post:        Post to write
+        :type post:         Post
+        :param output_file: Target file to write (in HTML format)
+        :type output_file:  str
+        """
+        log.debug(f"Write {post} to {post.slug}")
 
     def main(self) -> None:
         """This is the main function that coordinates the run."""
