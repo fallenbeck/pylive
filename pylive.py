@@ -7,14 +7,18 @@ import os
 import re
 import pprint
 import sys
+import threading
+from contextlib import contextmanager
 
 # Settings for this script. Should be parametrized later.
 POSTSDIR = "blogs/cno/posts"
 OUTPUTDIR = "blogs/cno/out"
 TEMPLATEDIR = "blogs/cno/templates"
+DEFAULT_LOCALE="de_DE"
 
 # Output format
-FMT_DATE_OUTPUT = "%A, %d. %B %Y"
+# the "-" in %-d will remove the leading 0 (if any)
+FMT_DATE_OUTPUT = "%A, %-d. %B %Y"
 
 IGNOREFILES = ["README", "TEMPLATE"]  # , "helloworld"]
 EXTENSIONS = [".md"]
@@ -27,6 +31,7 @@ log.setLevel(DEFAULT_LOGLEVEL)
 
 # Set locale to de_DE to get german output (day of week, ...)
 locale.setlocale(locale.LC_ALL, "de_DE")
+
 
 class Post:
     """This object represents a post.
@@ -57,15 +62,27 @@ class Post:
     # preamble as a key-value pair.
     meta: dict[str, str] = {}
 
-    # Date and time of publication
-    date: datetime.datetime = None
-    time: datetime.datetime = None  # unused
-    printable_date: str = None
+    # The following attributes will be set by self.__parse_attributes
 
-    # If post is a draft (do not publish)
+    # The the post's language (locale)
+    # Can be derived from the blog's default language (if not set in post)
+    # or set individually using the "lang" or "language" attribute
+    lang: str = "de_DE"
+
+    # Date and time of publication
+    # Must be set by "date" keyword in post's heade
+    date: datetime.datetime = datetime.datetime.now()
+
+    # Human-readable string representing the date, i.e.
+    # "Donnerstag, 3. August 2023"
+    printable_date: str
+
+    # If post is a draft
+    # This literally means that this script ignores this post
     draft: bool = False
 
     # If post has a valid header section and can be published
+    # Set by self.__validate_header()
     valid: bool = True
 
     def __init__(self,
@@ -84,7 +101,9 @@ class Post:
         self.rendered_text = self.__render(self.raw_text)
 
         # Set additional attributes
-        self.draft = ("draft" in self.meta.keys())
+        self.__parse_attributes(self.meta)
+
+        log.info("Finished")
 
     # Define properties ("getters") to get daata from the meta dictionary.
     # If a specified property does not exist in the dictionary the getter
@@ -234,15 +253,43 @@ class Post:
 
         return True
 
+    def __parse_attributes(self,
+                           meta: dict[str, str]):
+        """
+
+        """
+        log.info("Parse attributes from post header/preamble")
+        # language
+        for lang_key in ["lang", "language"]:
+            if lang_key in meta.keys():
+                self.lang = meta[lang_key].strip()
+                log.info(f"Set language to {self.lang}")
+                break
+
+        # date
+        self.date == self.__parse_date(meta["date"])
+        if self.date:
+            self.printable_date = self.__create_printable_date(self.date)
+
+        # draft
+        self.draft = ("draft" in meta.keys())
+        if self.draft:
+            log.debug("Mark as draft")
+
     def __parse_date(self,
-                     prefix_date: str) -> datetime.datetime:
+                     prefix_date: str) -> datetime.datetime | None:
         """
         """
+        log.debug(f"Create printable date from {prefix_date}")
+
+        # Supported input formats
         supported_formats: list[str] = [
                 "%d.%m.%y",     # 01.01.23
                 "%d.%m.%Y",     # 01.01.2023
                 ]
+
         dt: datetime.datetime = None
+
         for fmt in supported_formats:
             try:
                 dt = datetime.datetime.strptime(prefix_date, fmt)
@@ -254,10 +301,35 @@ class Post:
 
         if dt:
             log.info(f"Parsed date: {dt}")
-            self.printable_date = dt.strftime(FMT_DATE_OUTPUT)
-            log.info(f"will be printed: {self.printable_date}")
+            return dt
         else:
-            log.warning(f"Invalid date format: {prefix_date}")
+            log.error(f"Invalid date format: {prefix_date}")
+
+    LOCALE_LOCK = threading.Lock()
+
+    @contextmanager
+    def setlocale(self, name):
+        with self.LOCALE_LOCK:
+            saved = locale.setlocale(locale.LC_ALL)
+            try:
+                yield locale.setlocale(locale.LC_ALL, name)
+            finally:
+                locale.setlocale(locale.LC_ALL, saved)
+
+    def __create_printable_date(self,
+                                date: datetime.datetime) -> str:
+        """
+
+        """
+        try:
+            with(self.setlocale(self.lang)):
+                result = date.strftime(FMT_DATE_OUTPUT)
+        except Exception as e:
+            log.warning(f"Could not create printable date in {self.lang}: {e}")
+            result = date.strftime(FMT_DATE_OUTPUT)
+
+        log.info(f"Created from {date}: {result}")
+        return result
 
     def __render(self,
                  text: str) -> str:
