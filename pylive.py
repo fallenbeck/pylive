@@ -9,6 +9,7 @@ import pprint
 import sys
 import threading
 from contextlib import contextmanager
+from slugify import slugify
 
 # Settings for this script. Should be parametrized later.
 POSTSDIR = "blogs/cno/posts"
@@ -25,7 +26,8 @@ EXTENSIONS = [".md"]
 
 # Set up logging
 log_formatter = logging.Formatter('%(message)s')
-DEFAULT_LOGLEVEL = logging.WARNING
+#DEFAULT_LOGLEVEL = logging.WARNING
+DEFAULT_LOGLEVEL = logging.DEBUG
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
 
@@ -45,6 +47,10 @@ class Post:
 
     # Full path to source file name (Markdown file of post)
     filename: str = ""
+
+    # Name of the (output) file
+    # Will be derived from the input filename
+    #slug: str = ""
 
     # Keep the contents of the file in this variable.
     # This contains the original contents used to parse the Post object
@@ -67,15 +73,15 @@ class Post:
     # The the post's language (locale)
     # Can be derived from the blog's default language (if not set in post)
     # or set individually using the "lang" or "language" attribute
-    lang: str = "de_DE"
+    lang: str = DEFAULT_LOCALE
 
     # Date and time of publication
     # Must be set by "date" keyword in post's heade
-    date: datetime.datetime = datetime.datetime.now()
+    date: datetime.datetime = None
 
     # Human-readable string representing the date, i.e.
     # "Donnerstag, 3. August 2023"
-    printable_date: str
+    printable_date: str = None
 
     # If post is a draft
     # This literally means that this script ignores this post
@@ -103,7 +109,6 @@ class Post:
         # Set additional attributes
         self.__parse_attributes(self.meta)
 
-        log.info("Finished")
 
     # Define properties ("getters") to get daata from the meta dictionary.
     # If a specified property does not exist in the dictionary the getter
@@ -116,6 +121,14 @@ class Post:
     # @property
     # def date(self) -> str:
     #     return "Heute"
+
+    @property
+    def basename(self) -> str:
+        return os.path.basename(self.filename)
+
+    @property
+    def slug(self) -> str:
+        return slugify(os.path.splitext(self.basename)[0])
 
     @property
     def html(self) -> str:
@@ -269,7 +282,8 @@ class Post:
         # date
         self.date == self.__parse_date(meta["date"])
         if self.date:
-            self.printable_date = self.__create_printable_date(self.date)
+            self.printable_date = self.__create_printable_date(self.date,
+                                                               self.lang)
 
         # draft
         self.draft = ("draft" in meta.keys())
@@ -317,15 +331,20 @@ class Post:
                 locale.setlocale(locale.LC_ALL, saved)
 
     def __create_printable_date(self,
-                                date: datetime.datetime) -> str:
+                                date: datetime.datetime,
+                                locale: str = None) -> str:
         """
 
         """
-        try:
-            with(self.setlocale(self.lang)):
-                result = date.strftime(FMT_DATE_OUTPUT)
-        except Exception as e:
-            log.warning(f"Could not create printable date in {self.lang}: {e}")
+        result: str = None
+        if locale:
+            try:
+                with(self.setlocale(locale)):
+                    result = date.strftime(FMT_DATE_OUTPUT)
+            except Exception as e:
+                log.warning(f"Could not create printable date in {self.lang}: {e}")
+
+        if not result:
             result = date.strftime(FMT_DATE_OUTPUT)
 
         log.info(f"Created from {date}: {result}")
@@ -348,7 +367,11 @@ class Post:
         return html
 
     def __str__(self):
-        return f"{self.title} ({self.filename})"
+        if self.date:
+            shortdate = datetime.datetime.strftime(self.date, "%d.%m.%Y")
+        else:
+            shortdate = "UNSET_DATE"
+        return f"{shortdate} {self.title} ({self.filename} -> {self.slug})"
 
     def __repr__(self):
         return str(self)
@@ -373,8 +396,7 @@ class PyLive:
             stdout = logging.StreamHandler()
             stdout.setFormatter(log_formatter)
             log.addHandler(stdout)
-            # log.setLevel(DEFAULT_LOGLEVEL)
-            log.setLevel(logging.INFO)
+            log.setLevel(DEFAULT_LOGLEVEL)
 
         if not os.path.isdir(POSTSDIR):
             log.error(f"{POSTSDIR} is not a directory!")
@@ -383,11 +405,12 @@ class PyLive:
 
         self.main()
 
-    def list_posts_to_compile(self,
-                              path: str,
-                              extensions: list[str] = [".md", ".markdown"],
-                              ignore: list[str] = ["README", "TEMPLATE"],
-                              ) -> list[str]:
+    def list_post_files_to_compile(
+            self,
+            path: str,
+            extensions: list[str] = [".md", ".markdown"],
+            ignore: list[str] = ["README", "TEMPLATE"],
+            ) -> list[str]:
         """Return the list of post names to be compiled.
 
         This function will return a list of files existing in the post's
@@ -413,7 +436,7 @@ class PyLive:
         :return:            List of file names to be compiled
         :rtype:             list[str]
         """
-        log.info(f"Search for posts to compile in \"{path}\"")
+        log.info(f"Search for post files in \"{path}\"")
         log.debug(f"Valid file extensions: {extensions}")
         log.debug(f"Filenames to ignore: {ignore}")
         files = [f for f in os.listdir(path)
@@ -421,7 +444,7 @@ class PyLive:
                  and os.path.splitext(f)[1] in extensions
                  and os.path.splitext(f)[0] not in ignore
                  ]
-        log.info(f"{len(files)} posts to compile: {files}")
+        log.info(f"{len(files)} post files found: {files}")
         return files
 
     def create_post_object(self,
@@ -469,27 +492,50 @@ class PyLive:
         """
         log.debug(f"Write {post}")
 
-    def main(self) -> None:
-        """This is the main function that coordinates the run."""
-        posts_to_compile = self.list_posts_to_compile(
-                path=self.posts_directory,
-                extensions=self.post_extensions,
-                ignore=self.ignore_filenames,
+    def get_list_of_posts(self,
+                          path: str,
+                          extensions: list[str],
+                          ignore_files: list[str],
+                          ) -> list[Post]:
+        """
+
+        """
+        # Will hold the post objects
+        #result: list[Post] = []
+        list_of_post_objects: list[Post] = []
+
+        log.debug(f"Scan {path} for files with extensions {extensions}, "
+                  f"ignoring {ignore_files}")
+        post_files_to_compile = self.list_post_files_to_compile(
+                path=path,
+                extensions=extensions,
+                ignore=ignore_files,
                 )
 
-        list_of_post_objects: list[Post] = []
-        for post_file in posts_to_compile:
+
+        for post_file in post_files_to_compile:
             post = self.create_post_object(path=self.posts_directory,
                                            filename=post_file)
 
-            # Ignore post objects that are None
+            # Ignore post objects that are None or marked as draft
             # (when an error has occurred during Post object creation, e.g.
             #  because of missing header/preamble)
-            if post:
+            if post and not post.draft:
+                log.debug(f"Add {post} to list of posts to compile")
                 list_of_post_objects.append(post)
 
         log.warning(f"{len(list_of_post_objects)} post objects created")
-        log.warning(pprint.pformat(list_of_post_objects))
+        return list_of_post_objects
+
+    def main(self) -> None:
+        """This is the main function that coordinates the run."""
+        list_of_posts_to_compile = self.get_list_of_posts(
+                path=self.posts_directory,
+                extensions=self.post_extensions,
+                ignore_files=self.ignore_filenames,
+                )
+
+        log.warning(pprint.pformat(list_of_posts_to_compile))
 
 
 if __name__ == '__main__':
