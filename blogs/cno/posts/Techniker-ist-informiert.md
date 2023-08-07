@@ -1,10 +1,8 @@
 ---
 title: Techniker ist informiert!
 date: 27.07.2023
-author: "Niels"
+author: Niels
 ---
-
-# Techniker ist informiert!
 
 Es ist einige Zeit her, dass ich meine alte Wordpress-Installation und meine auf
 PHP basierende Webseite durch eine einzelne statische HTML-Datei ersetzt habe.
