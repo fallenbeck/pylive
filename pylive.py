@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import datetime
+from __future__ import annotations
+from datetime import datetime
 import locale
 import logging
 import markdown
@@ -10,7 +11,7 @@ import sys
 import threading
 from contextlib import contextmanager
 from jinja2 import Environment, FileSystemLoader
-from slugify import slugify
+from slugify import UniqueSlugify
 
 # Settings for this script. Should be parametrized later.
 POSTSDIR = "blogs/cno/posts"
@@ -24,6 +25,7 @@ FMT_DATE_OUTPUT = "%A, %-d. %B %Y"
 
 IGNOREFILES = ["README", "TEMPLATE"]  # , "helloworld"]
 EXTENSIONS = [".md"]
+OUTPUT_EXTENSION = ".html"
 
 # Set up logging
 log_formatter = logging.Formatter('%(message)s')
@@ -34,6 +36,10 @@ log.setLevel(DEFAULT_LOGLEVEL)
 
 # Set locale to de_DE to get german output (day of week, ...)
 locale.setlocale(locale.LC_ALL, "de_DE")
+
+# Define slugify
+# see: https://pypi.org/project/awesome-slugify/
+slugify = UniqueSlugify()
 
 
 class Post:
@@ -46,12 +52,19 @@ class Post:
     Each post is represented as a markdown file in the file system.
     """
 
-    # Full path to source file name (Markdown file of post)
-    filename: str = ""
+    # Source file name (Markdown file of post)
+    __filename: str = ""
+
+    # Full path of the output filename
+    __outfile: str = ""
+
+    # Post neigbors
+    __next: Post = None
+    __prev: Post = None
 
     # Name of the (output) file
     # Will be derived from the input filename
-    # slug: str = ""
+    __slug: str = None
 
     # Keep the contents of the file in this variable.
     # This contains the original contents used to parse the Post object
@@ -78,7 +91,7 @@ class Post:
 
     # Date and time of publication
     # Must be set by "date" keyword in post's heade
-    date: datetime.datetime = None
+    date: datetime = None
 
     # Human-readable string representing the date, i.e.
     # "Donnerstag, 3. August 2023"
@@ -86,7 +99,7 @@ class Post:
 
     # If post is a draft
     # This literally means that this script ignores this post
-    draft: bool = False
+    __draft: bool = False
 
     # If post has a valid header section and can be published
     # Set by self.__validate_header()
@@ -102,9 +115,19 @@ class Post:
         :type full_filename:    str
         """
         log.info(f"Create post object from {full_filename}")
-        self.filename = full_filename
-        self.raw = self.__read_file(self.filename)
+
+        # First read the contents of the file before
+        # saving just the file's basename
+        log.info("Read file contents")
+        self.raw = self.__read_file(full_filename)
+
+        # Store the basename
+        self.__filename = os.path.basename(full_filename)
+
+        # Get the meta information and the raw text
         self.meta, self.raw_text = self.__segment(self.raw)
+
+        # Render the text to HTML
         self.rendered_text = self.__render(self.raw_text)
 
         # Set additional attributes
@@ -128,15 +151,51 @@ class Post:
 
     @property
     def slug(self) -> str:
-        return slugify(os.path.splitext(self.basename)[0])
+        if not self.__slug:
+            self.__slug = slugify(
+                    os.path.splitext(self.basename)[0],
+                    to_lower=True,
+                    )
+        return self.__slug
+        #return slugify(os.path.splitext(self.basename)[0])
+
+    @property
+    def filename(self) -> str:
+        return self.__filename
+
+    @property
+    def outfile(self) -> str:
+        return f"{self.slug}{OUTPUT_EXTENSION}"
 
     @property
     def html(self) -> str:
         return self.rendered_text
 
-    # @property
-    # def draft(self) -> bool:
-    #     return "draft" in self.meta.keys()
+    @property
+    def draft(self) -> bool:
+        return "draft" in self.meta.keys()
+
+    @property
+    def next(self) -> Post:
+        return self.__next
+
+    @next.setter
+    def next(self, post: Post):
+        self.__next = post
+
+    def has_next(self) -> bool:
+        return self.__next is not None
+
+    @property
+    def prev(self) -> Post:
+        return self.__prev
+
+    @prev.setter
+    def prev(self, post: Post):
+        self.__prev = post
+
+    def has_prev(self) -> bool:
+        return self.__prev is not None
 
     def __read_file(self,
                     full_filename: str) -> str:
@@ -286,12 +345,12 @@ class Post:
                                                                self.lang)
 
         # draft
-        self.draft = ("draft" in meta.keys())
-        if self.draft:
+        self.__draft = ("draft" in meta.keys())
+        if self.__draft:
             log.debug("Mark as draft")
 
     def __parse_date(self,
-                     prefix_date: str) -> datetime.datetime:
+                     prefix_date: str) -> datetime:
         """
         """
         log.debug(f"Create printable date from {prefix_date}")
@@ -302,11 +361,11 @@ class Post:
                 "%d.%m.%Y",     # 01.01.2023
                 ]
 
-        dt: datetime.datetime = None
+        dt: datetime = None
 
         for fmt in supported_formats:
             try:
-                dt = datetime.datetime.strptime(prefix_date, fmt)
+                dt = datetime.strptime(prefix_date, fmt)
             except Exception as e:
                 # log.warning(f"Could not parse {fmt}: {e}")
                 continue
@@ -333,7 +392,7 @@ class Post:
                 locale.setlocale(locale.LC_ALL, saved)
 
     def __create_printable_date(self,
-                                date: datetime.datetime,
+                                date: datetime,
                                 locale: str = None) -> str:
         """
 
@@ -368,15 +427,51 @@ class Post:
         # log.debug(html)
         return html
 
+    # Representation functions
+
     def __str__(self):
         if self.date:
-            shortdate = datetime.datetime.strftime(self.date, "%d.%m.%Y")
+            shortdate = datetime.strftime(self.date, "%d.%m.%Y")
         else:
             shortdate = "UNSET_DATE"
-        return f"{shortdate} {self.title} ({self.filename} -> {self.slug})"
+        #return f"{shortdate} {self.title} ({self.filename} -> {self.slug})"
+        return f"{self.title}"
 
     def __repr__(self):
         return str(self)
+
+    # Comparison functions
+    def __eq__(self, other: Post) -> bool:
+        return self.date == other.date
+
+    def __lt__(self, other: Post) -> bool:
+        return self.date < other.date
+
+    def __gt__(self, other: Post) -> bool:
+        return self.date > other.date
+
+    def __ne__(self, other: Post) -> bool:
+        return self.date != other.date
+
+    # Comprehensive information
+    def to_dict(self) -> dict[str, str]:
+        result: dict[str, str] = {}
+        result["title"] = self.title
+        result["date"] = self.date
+        result["printable_date"] = self.printable_date
+        result["filename"] = self.filename
+        result["outfile"] = self.outfile
+        result["next"] = self.next
+        result["prev"] = self.prev
+
+        to_display: list[str] = [
+                "author"
+                ]
+        for attribute in to_display:
+            if attribute in self.meta:
+                result[attribute] = self.meta.get(attribute)
+
+        return result
 
 
 class PyLive:
@@ -493,17 +588,27 @@ class PyLive:
         """
         log.debug(f"Write {post} to {post.slug}")
 
-    def get_list_of_posts(self,
-                          path: str,
-                          extensions: list[str],
-                          ignore_files: list[str],
-                          ) -> list[Post]:
+    def create_blogchain(self,
+                         path: str,
+                         extensions: list[str],
+                         ignore_files: list[str],
+                         ) -> list[Post]:
         """Return list of post objects to be published sorted by the posts'
-        publication date from newest to oldest (newest post is the first element
-                                                in the list).
+        publication date from newest to oldest (newest post is the first
+        element in the list).
+        Although this function returns a list you can iterate the chain of Post
+        objects by the Post's member functions .next() and .previous().
+
+        :param path:            File system path where the markdown files are located
+        :type path:             str
+        :param extenstions:     List of extensions the markdown files can have
+        :type extensions:       list[str]
+        :param ignore_files:    List of files' (basenames) to ignore
+        :type ignore_files:     list[str]
+        :return:                List of Post Objects, the newest post first
+        :rtype:                 list[Post]
         """
         # Will hold the post objects
-        # result: list[Post] = []
         list_of_post_objects: list[Post] = []
 
         log.debug(f"Scan {path} for files with extensions {extensions}, "
@@ -528,43 +633,92 @@ class PyLive:
         log.warning(f"{len(list_of_post_objects)} post objects created")
 
         log.debug("Sort list of posts to publish by date")
+        # Sorted list uses the Post's built-in comparison functions.
+        # You could also achieve the same by using "key=lambda p: p.date"
         list_of_post_objects = sorted(list_of_post_objects,
-                                      key=lambda p: p.date,
                                       reverse=True)
+
+        log.debug(f"Chain-link {len(list_of_post_objects)} objects")
+        for i in range(0, len(list_of_post_objects)):
+            post = list_of_post_objects[i]
+
+            # Set previous post objectt
+            if i == 0:
+                post.prev = None
+            else:
+                post.prev = list_of_post_objects[i - 1]
+
+            # Set next post object
+            if i == len(list_of_post_objects) - 1:
+                post.next = None
+            else:
+                post.next = list_of_post_objects[i + 1]
 
         return list_of_post_objects
 
-    def write_index(self,
+    def create_html(self,
                     post: Post,
                     template_file: str,
-                    output_file: str,
-                    ):
+                    ) -> str:
+        """Create the contents of an HTML file for a particular post using a
+        particular template.
+
+        :param post:            Post to write
+        :type post:             Post
+        :param template_file:   Template file to use for creating HTML
+        :type template_file:    str
+        :return:                Content of HTML file based on template file
+        :rtype:                 str
         """
+        log.info(f"Create HTML for {post} from {template_file}")
 
-        """
+        log.debug("Create data dictionary")
+        data: dict[str, str] = {
+                "title": post.title,
+                "date": post.printable_date,
+                "text": post.rendered_text,
+                "outfile": post.outfile,
+                "next": post.next,
+                "prev": post.prev,
+                }
 
+        log.debug("Create Jinja2 environment and load template")
+        environment = Environment(
+                loader=FileSystemLoader("blogs/cno/templates/")
+                )
+        template = environment.get_template(template_file)
 
-    def write_post_file(self,
-                        post: Post,
-                        output_directory: str):
-        """Write post as HTML file to specific file.
-
-        :param post:        Post to write
-        :type post:         Post
-        :param output_file: Target file to write (in HTML format)
-        :type output_file:  str
-        """
-        log.debug(f"Write {post} to {post.slug}")
+        log.debug("Render content")
+        content = template.render(data)
+        return content
 
     def main(self) -> None:
         """This is the main function that coordinates the run."""
-        list_of_posts_to_compile = self.get_list_of_posts(
+        blogchain = self.create_blogchain(
                 path=self.posts_directory,
                 extensions=self.post_extensions,
                 ignore_files=self.ignore_filenames,
                 )
 
-        log.warning(pprint.pformat(list_of_posts_to_compile))
+        log.warning(pprint.pformat(blogchain))
+
+        log.info(f"Generated blogchain: {blogchain}")
+
+        for post in blogchain:
+            log.info(pprint.pformat(post.to_dict()))
+
+            html_contents = self.create_html(
+                    post=post,
+                    template_file="index.html"
+                    )
+
+            with open(post.outfile, "w") as f:
+                f.write(html_contents)
+
+            if not post.prev:
+                with open("index.html", "w") as f:
+                          f.write(html_contents)
+
 
 
 if __name__ == '__main__':
