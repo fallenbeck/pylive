@@ -91,7 +91,7 @@ class Post:
 
     # Date and time of publication
     # Must be set by "date" keyword in post's heade
-    date: datetime = None
+    __date: datetime = None
 
     # Human-readable string representing the date, i.e.
     # "Donnerstag, 3. August 2023"
@@ -141,9 +141,13 @@ class Post:
     def title(self) -> str:
         return self.meta.get("title", "Untitled")
 
-    # @property
-    # def date(self) -> str:
-    #     return "Heute"
+    @property
+    def date(self) -> datetime:
+        return self.__date
+
+    @property
+    def isodate(self) -> str:
+        return self.date.astimezone().isoformat()
 
     @property
     def basename(self) -> str:
@@ -319,8 +323,8 @@ class Post:
 
         # Check if date is in a known format that can be parsed
         if "date" in header.keys():
-            self.date = self.__parse_date(header["date"])
-            if not self.date:
+            self.__date = self.__parse_date(header["date"])
+            if not self.__date:
                 self.valid = False
 
         return True
@@ -339,8 +343,8 @@ class Post:
                 break
 
         # date
-        self.date == self.__parse_date(meta["date"])
-        if self.date:
+        self.__date == self.__parse_date(meta["date"])
+        if self.__date:
             self.printable_date = self.__create_printable_date(self.date,
                                                                self.lang)
 
@@ -692,6 +696,37 @@ class PyLive:
         content = template.render(data)
         return content
 
+    def create_atom_feed(self,
+                         blogchain: list[Post],
+                         ) -> str:
+        """Create Atom Feed.
+        """
+        result: str = None
+
+        environment = Environment(
+                loader=FileSystemLoader("blogs/cno/templates/")
+                )
+        template = environment.get_template("atom.xml")
+
+        blog: dict[str, str] = {}
+        blog["title"] = "On the Heights of Despair"
+        blog["subtitle"] = "The very long journey of a man called me."
+        blog["author"] = "Niels Fallenbeck"
+        blog["id"] = "https://fallenbeck.com/"
+        blog["url"] = "https://fallenbeck.com/"
+        blog["feedurl"] = "https://fallenbeck.com/atom.xml"
+        blog["icon"] = "https://fallenbeck.com/favicon.ico"
+        blog["generator"] = "Blogchain"
+        blog["generator_uri"] = "https://fallenbeck.com/"
+        blog["date"] = blogchain[0].isodate
+
+        content = template.render({
+            "blog": blog,
+            "posts": blogchain,
+            })
+
+        return content
+
     def main(self) -> None:
         """This is the main function that coordinates the run."""
         blogchain = self.create_blogchain(
@@ -718,6 +753,9 @@ class PyLive:
             if not post.prev:
                 with open("index.html", "w") as f:
                           f.write(html_contents)
+
+        with open("atom.xml", "w")as f:
+            f.write(self.create_atom_feed(blogchain))
 
 
 

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <title><![CDATA[{{ blog.title }}]]></title>
+    <subtitle><![CDATA[{{ blog.subtitle }}]]></subtitle>
+    <author>
+        <name><![CDATA[{{ blog.author }}]]></name>
+    </author>
+    <updated>{{ blog.date }}</updated>
+    <id>{{ blog.id }}</id>
+    <link rel="self" href="{{ blog.feedurl }}"/>
+    <link href="{{ blog.url }}"/>
+    <icon>{{ blog.icon }}</icon>
+    <generator uri="{{ blog.generator_uri }}"><![CDATA[{{ blog.generator }}]]></generator>
+
+    {% for post in posts %}
+    <entry>
+        <title type="html"><![CDATA[{{ post.title }}]]></title>
+        <link href="https://fallenbeck.com/{{ post.outfile }}"/>
+        <id>https://fallenbeck.com/{{ post.outfile }}</id>
+        <updated>{{ post.isodate }}</updated>
+        {% if post.author %}
+        <author>
+            <name><![CDATA[{{ post.author }}]]></name>
+        </author>
+        {% endif %}
+        <content type="html"><![CDATA[
+            {{ post.html }}
+        ]]></content>
+    </entry>
+    {% endfor %}
+</feed>
