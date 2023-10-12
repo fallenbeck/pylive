@@ -47,4 +47,4 @@ resoniert in mir unangenehm stark. Vielleicht habe ich endlich einen Hinweis
 gefunden für mein Bauchgefühl.
 
 Ich würde mich schämen, wenn ich später auf die Frage "Wo bist Du gewesen, als
-alles begann?" anworten müsste: "Im Fanblock."
+alles begann?" antworten müsste: "Im Fanblock."
