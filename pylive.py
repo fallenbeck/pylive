@@ -14,10 +14,17 @@ from jinja2 import Environment, FileSystemLoader
 from slugify import UniqueSlugify
 
 # Settings for this script. Should be parametrized later.
-POSTSDIR = "blogs/cno/posts"
-OUTPUTDIR = "blogs/cno/out"
-TEMPLATEDIR = "blogs/cno/templates"
+# POSTSDIR = "blogs/cno/posts"
+# OUTPUTDIR = "blogs/cno/out"
+# TEMPLATEDIR = "blogs/cno/templates"
 DEFAULT_LOCALE = "de_DE"
+
+
+# TODO: Use config file in current directory instead
+POSTSDIR = "posts"
+OUTPUTDIR = "out"
+TEMPLATEDIR = "templates"
+
 
 # Output format
 # the "-" in %-d will remove the leading 0 (if any)
@@ -29,8 +36,8 @@ OUTPUT_EXTENSION = ".html"
 
 # Set up logging
 log_formatter = logging.Formatter('%(message)s')
-DEFAULT_LOGLEVEL = logging.WARNING
-# DEFAULT_LOGLEVEL = logging.DEBUG
+# DEFAULT_LOGLEVEL = logging.WARNING
+DEFAULT_LOGLEVEL = logging.DEBUG
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
 
@@ -567,31 +574,6 @@ class PyLive:
         except Exception as e:
             log.error(f"Could not create Post: {e}")
 
-    def write_posts(self,
-                    list_of_posts: list[Post],
-                    output_dir: str):
-        """Write the list of Posts as files to the specified output directory.
-
-        :param list_of_posts:   List of posts to write
-        :type list_of_posts:    list[Post]
-        :param output_dir:      Target directory to put output files to
-        :type output_dir:       str
-        """
-        log.info(f"Write {len(list_of_posts)} output files to {output_dir}")
-        for post in list_of_posts:
-            self.write_post(post, "lala.html")
-
-    def write_post(self,
-                   post: Post):
-        """Write post as HTML file to specific file.
-
-        :param post:        Post to write
-        :type post:         Post
-        :param output_file: Target file to write (in HTML format)
-        :type output_file:  str
-        """
-        log.debug(f"Write {post} to {post.slug}")
-
     def create_blogchain(self,
                          path: str,
                          extensions: list[str],
@@ -689,7 +671,7 @@ class PyLive:
 
         log.debug("Create Jinja2 environment and load template")
         environment = Environment(
-                loader=FileSystemLoader("blogs/cno/templates/")
+                loader=FileSystemLoader(TEMPLATEDIR)
                 )
         template = environment.get_template(template_file)
 
@@ -703,7 +685,7 @@ class PyLive:
         """Create Atom Feed.
         """
         environment = Environment(
-                loader=FileSystemLoader("blogs/cno/templates/")
+                loader=FileSystemLoader(TEMPLATEDIR)
                 )
         template = environment.get_template("atom.xml")
 
@@ -727,7 +709,9 @@ class PyLive:
         return content
 
     def main(self) -> None:
-        """This is the main function that coordinates the run."""
+        """This is the main function that coordinates the run and writes the
+        files to disk.
+        """
         blogchain = self.create_blogchain(
                 path=self.posts_directory,
                 extensions=self.post_extensions,
@@ -746,14 +730,14 @@ class PyLive:
                     template_file="index.html"
                     )
 
-            with open(post.outfile, "w") as f:
+            with open(os.path.join(OUTPUTDIR, post.outfile), "w") as f:
                 f.write(html_contents)
 
             if not post.prev:
-                with open("index.html", "w") as f:
+                with open(os.path.join(OUTPUTDIR, "index.html"), "w") as f:
                     f.write(html_contents)
 
-        with open("atom.xml", "w")as f:
+        with open(os.path.join(OUTPUTDIR, "atom.xml"), "w") as f:
             f.write(self.create_atom_feed(blogchain))
 
 
