@@ -758,6 +758,5 @@ class PyLive:
             f.write(self.create_atom_feed(blogchain))
 
 
-
 if __name__ == '__main__':
     pyl = PyLive()
