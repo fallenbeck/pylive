@@ -29,8 +29,8 @@ OUTPUT_EXTENSION = ".html"
 
 # Set up logging
 log_formatter = logging.Formatter('%(message)s')
-# DEFAULT_LOGLEVEL = logging.WARNING
-DEFAULT_LOGLEVEL = logging.DEBUG
+DEFAULT_LOGLEVEL = logging.WARNING
+# DEFAULT_LOGLEVEL = logging.DEBUG
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
 
@@ -161,7 +161,6 @@ class Post:
                     to_lower=True,
                     )
         return self.__slug
-        #return slugify(os.path.splitext(self.basename)[0])
 
     @property
     def filename(self) -> str:
@@ -407,7 +406,8 @@ class Post:
                 with (self.setlocale(locale)):
                     result = date.strftime(FMT_DATE_OUTPUT)
             except Exception as e:
-                log.warning(f"Could not create printable date in {self.lang}: {e}")
+                log.warning(f"Could not create printable date in {self.lang}: "
+                            f"{e}")
 
         if not result:
             result = date.strftime(FMT_DATE_OUTPUT)
@@ -603,7 +603,8 @@ class PyLive:
         Although this function returns a list you can iterate the chain of Post
         objects by the Post's member functions .next() and .previous().
 
-        :param path:            File system path where the markdown files are located
+        :param path:            File system path where the markdown files are
+                                located
         :type path:             str
         :param extenstions:     List of extensions the markdown files can have
         :type extensions:       list[str]
@@ -701,8 +702,6 @@ class PyLive:
                          ) -> str:
         """Create Atom Feed.
         """
-        result: str = None
-
         environment = Environment(
                 loader=FileSystemLoader("blogs/cno/templates/")
                 )
