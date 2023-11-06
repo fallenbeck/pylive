@@ -752,7 +752,7 @@ class PyLive:
 
             if not post.prev:
                 with open("index.html", "w") as f:
-                          f.write(html_contents)
+                    f.write(html_contents)
 
         with open("atom.xml", "w")as f:
             f.write(self.create_atom_feed(blogchain))
