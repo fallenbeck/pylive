@@ -753,6 +753,7 @@ class PyLive:
 
         log.info(f"Generated blogchain: {blogchain}")
 
+        index_written: bool = False
         for post in blogchain:
             log.info(pprint.pformat(post.to_dict()))
 
@@ -764,9 +765,11 @@ class PyLive:
             with open(os.path.join(OUTPUTDIR, post.outfile), "w") as f:
                 f.write(html_contents)
 
-            if not post.prev:
+            # Write index.html: First non-hidden page in chain
+            if not index_written and not post.hidden:
                 with open(os.path.join(OUTPUTDIR, "index.html"), "w") as f:
                     f.write(html_contents)
+                index_written = True
 
         with open(os.path.join(OUTPUTDIR, "atom.xml"), "w") as f:
             f.write(self.create_atom_feed(blogchain))
