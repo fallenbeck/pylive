@@ -734,7 +734,7 @@ class PyLive:
 
         content = template.render({
             "blog": blog,
-            "posts": blogchain,
+            "posts": [p for p in blogchain if not p.hidden],
             })
 
         return content
