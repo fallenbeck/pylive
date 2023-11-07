@@ -108,6 +108,10 @@ class Post:
     # This literally means that this script ignores this post
     __draft: bool = False
 
+    # Post is a "hidden" post that will create a page that is not part of the
+    # blog's list of posts
+    __hidden: bool = False
+
     # If post has a valid header section and can be published
     # Set by self.__validate_header()
     valid: bool = True
@@ -183,7 +187,13 @@ class Post:
 
     @property
     def draft(self) -> bool:
+        # TODO: Better evaluate "draft: true"
         return "draft" in self.meta.keys()
+
+    @property
+    def hidden(self) -> bool:
+        # TODO: Better evaluate "hidden: true"
+        return "hidden" in self.meta.keys()
 
     @property
     def next(self) -> Post:
@@ -625,21 +635,40 @@ class PyLive:
         list_of_post_objects = sorted(list_of_post_objects,
                                       reverse=True)
 
-        log.debug(f"Chain-link {len(list_of_post_objects)} objects")
+        # Build the chain of non-hidden posts
+        log.debug(f"Chain-link non-hidden posts ({len(list_of_post_objects)}"
+                  f" total posts)")
+
+        # Keep track of post objects when building the chain
+        next_post: Post = None
+        last_unhidden_post: Post = None
+
+        # Iterate the list of posts
         for i in range(0, len(list_of_post_objects)):
+            # Get post object
             post = list_of_post_objects[i]
 
-            # Set previous post objectt
-            if i == 0:
-                post.prev = None
+            # Get the successor of this post object (if any)
+            if (i + 1) < len(list_of_post_objects):
+                next_post = list_of_post_objects[i + 1]
             else:
-                post.prev = list_of_post_objects[i - 1]
+                next_post = None
 
-            # Set next post object
-            if i == len(list_of_post_objects) - 1:
-                post.next = None
-            else:
-                post.next = list_of_post_objects[i + 1]
+            # If this post is hidden the last non-hidden post needs to point
+            # to this post's successor (and if the successor is also hidden
+            # the .next reference of the last unhidden post will be modified
+            # again)
+            if post.hidden:
+                last_unhidden_post.next = next_post
+                continue
+
+            # If not hidden set the references according to the settings we
+            # have
+            post.prev = last_unhidden_post
+            post.next = next_post
+
+            # ... and set this post object as last unhidden post object
+            last_unhidden_post = post
 
         return list_of_post_objects
 
@@ -690,6 +719,8 @@ class PyLive:
         template = environment.get_template("atom.xml")
 
         blog: dict[str, str] = {}
+
+        # TODO: Read from config file
         blog["title"] = "On the Heights of Despair"
         blog["subtitle"] = "The very long journey of a man called me."
         blog["author"] = "Niels Fallenbeck"
