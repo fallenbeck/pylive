@@ -659,7 +659,8 @@ class PyLive:
             # the .next reference of the last unhidden post will be modified
             # again)
             if post.hidden:
-                last_unhidden_post.next = next_post
+                if last_unhidden_post is not None:
+                    last_unhidden_post.next = next_post
                 continue
 
             # If not hidden set the references according to the settings we
