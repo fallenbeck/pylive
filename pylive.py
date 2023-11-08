@@ -721,6 +721,9 @@ class PyLive:
 
         blog: dict[str, str] = {}
 
+        # Create list of blog posts that are not hidden
+        unhidden_posts = [p for p in blogchain if not p.hidden]
+
         # TODO: Read from config file
         blog["title"] = "On the Heights of Despair"
         blog["subtitle"] = "The very long journey of a man called me."
@@ -731,11 +734,11 @@ class PyLive:
         blog["icon"] = "https://fallenbeck.com/favicon.ico"
         blog["generator"] = "Blogchain"
         blog["generator_uri"] = "https://fallenbeck.com/"
-        blog["date"] = blogchain[0].isodate
+        blog["date"] = unhidden_posts[0].isodate
 
         content = template.render({
             "blog": blog,
-            "posts": [p for p in blogchain if not p.hidden],
+            "posts": unhidden_posts,
             })
 
         return content
