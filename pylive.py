@@ -444,7 +444,12 @@ class Post:
         """
         log.info("Convert Markdown to html")
         # log.debug(text)
-        html = markdown.markdown(text)
+
+        # Use fenced_code extension
+        # see: https://python-markdown.github.io/extensions/fenced_code_blocks/
+        html = markdown.markdown(text,
+                                 extensions=['fenced_code'],
+                                 )
         # log.debug(html)
         return html
 
