@@ -63,15 +63,15 @@ class Post:
     __filename: str = ""
 
     # Full path of the output filename
-    __outfile: str = ""
+    # __outfile: str = ""
 
     # Post neigbors
-    __next: Post = None
-    __prev: Post = None
+    __next: Post | None = None
+    __prev: Post | None = None
 
     # Name of the (output) file
     # Will be derived from the input filename
-    __slug: str = None
+    __slug: str | None = None
 
     # Keep the contents of the file in this variable.
     # This contains the original contents used to parse the Post object
@@ -98,7 +98,7 @@ class Post:
 
     # Date and time of publication
     # Must be set by "date" keyword in post's heade
-    __date: datetime = None
+    __date: datetime | None = None
 
     # Human-readable string representing the date, i.e.
     # "Donnerstag, 3. August 2023"
@@ -153,12 +153,14 @@ class Post:
         return self.meta.get("title", "Untitled")
 
     @property
-    def date(self) -> datetime:
+    def date(self) -> datetime | None:
         return self.__date
 
     @property
-    def isodate(self) -> str:
-        return self.date.astimezone().isoformat()
+    def isodate(self) -> str | None:
+        if self.date:
+            return self.date.astimezone().isoformat()
+        return None
 
     @property
     def basename(self) -> str:
@@ -187,31 +189,29 @@ class Post:
 
     @property
     def draft(self) -> bool:
-        # TODO: Better evaluate "draft: true"
-        return "draft" in self.meta.keys()
+        return self.__draft
 
     @property
     def hidden(self) -> bool:
-        # TODO: Better evaluate "hidden: true"
-        return "hidden" in self.meta.keys()
+        return self.__hidden
 
     @property
-    def next(self) -> Post:
+    def next(self) -> Post | None:
         return self.__next
 
     @next.setter
-    def next(self, post: Post):
+    def next(self, post: Post | None):
         self.__next = post
 
     def has_next(self) -> bool:
         return self.__next is not None
 
     @property
-    def prev(self) -> Post:
+    def prev(self) -> Post | None:
         return self.__prev
 
     @prev.setter
-    def prev(self, post: Post):
+    def prev(self, post: Post | None):
         self.__prev = post
 
     def has_prev(self) -> bool:
@@ -317,7 +317,9 @@ class Post:
 
     def __validate_header(self,
                           header: dict[str, str],
-                          required_keys: list[str] = ["title", "date"],
+                          required_keys: list[str] = ["title",
+                                                      "date",
+                                                      ],
                           ) -> bool:
         """Validate header/preamble information.
 
@@ -340,7 +342,7 @@ class Post:
         # Check if date is in a known format that can be parsed
         if "date" in header.keys():
             self.__date = self.__parse_date(header["date"])
-            if not self.__date:
+            if not self.date:
                 self.valid = False
 
         return True
@@ -365,12 +367,19 @@ class Post:
                                                                self.lang)
 
         # draft
+        # TODO: Better evaluate "draft: true"
         self.__draft = ("draft" in meta.keys())
         if self.__draft:
             log.debug("Mark as draft")
 
+        # hidden
+        # TODO: Better evaluate "hidden: true"
+        self.__hidden = ("hidden" in meta.keys())
+        if self.__hidden:
+            log.debug("Mark as hidden")
+
     def __parse_date(self,
-                     prefix_date: str) -> datetime:
+                     prefix_date: str) -> datetime | None:
         """
         """
         log.debug(f"Create printable date from {prefix_date}")
@@ -381,14 +390,15 @@ class Post:
                 "%d.%m.%Y",     # 01.01.2023
                 ]
 
-        dt: datetime = None
+        dt: datetime | None = None
 
         for fmt in supported_formats:
             try:
                 dt = datetime.strptime(prefix_date, fmt)
-            except Exception as e:
-                # log.warning(f"Could not parse {fmt}: {e}")
+            except Exception:
                 continue
+            # except Exception as e:
+                # log.warning(f"Could not parse {fmt}: {e}")
 
             break
 
@@ -412,22 +422,24 @@ class Post:
                 locale.setlocale(locale.LC_ALL, saved)
 
     def __create_printable_date(self,
-                                date: datetime,
-                                locale: str = None) -> str:
+                                date: datetime | None,
+                                locale: str | None = None) -> str:
         """
 
         """
-        result: str = None
+        result: str = ""
         if locale:
             try:
                 with (self.setlocale(locale)):
-                    result = date.strftime(FMT_DATE_OUTPUT)
+                    if date:
+                        result = date.strftime(FMT_DATE_OUTPUT)
             except Exception as e:
                 log.warning(f"Could not create printable date in {self.lang}: "
                             f"{e}")
 
         if not result:
-            result = date.strftime(FMT_DATE_OUTPUT)
+            if date:
+                result = date.strftime(FMT_DATE_OUTPUT)
 
         log.info(f"Created from {date}: {result}")
         return result
@@ -456,11 +468,11 @@ class Post:
     # Representation functions
 
     def __str__(self):
-        if self.date:
-            shortdate = datetime.strftime(self.date, "%d.%m.%Y")
-        else:
-            shortdate = "UNSET_DATE"
-        #return f"{shortdate} {self.title} ({self.filename} -> {self.slug})"
+        # if self.date:
+        #     shortdate = datetime.strftime(self.date, "%d.%m.%Y")
+        # else:
+        #     shortdate = "UNSET_DATE"
+        # #return f"{shortdate} {self.title} ({self.filename} -> {self.slug})"
         return f"{self.title}"
 
     def __repr__(self):
@@ -471,17 +483,21 @@ class Post:
         return self.date == other.date
 
     def __lt__(self, other: Post) -> bool:
-        return self.date < other.date
+        if self.date and other.date:
+            return self.date < other.date
+        return False
 
     def __gt__(self, other: Post) -> bool:
-        return self.date > other.date
+        if self.date and other.date:
+            return self.date > other.date
+        return False
 
     def __ne__(self, other: Post) -> bool:
         return self.date != other.date
 
     # Comprehensive information
-    def to_dict(self) -> dict[str, str]:
-        result: dict[str, str] = {}
+    def to_dict(self) -> dict[str, str | Post | datetime | None]:
+        result: dict[str, str | Post | datetime | None] = {}
         result["title"] = self.title
         result["date"] = self.date
         result["printable_date"] = self.printable_date
@@ -493,6 +509,7 @@ class Post:
         to_display: list[str] = [
                 "author"
                 ]
+
         for attribute in to_display:
             if attribute in self.meta:
                 result[attribute] = self.meta.get(attribute)
@@ -645,8 +662,8 @@ class PyLive:
                   f" total posts)")
 
         # Keep track of post objects when building the chain
-        next_post: Post = None
-        last_unhidden_post: Post = None
+        next_post: Post | None = None
+        last_unhidden_post: Post | None = None
 
         # Iterate the list of posts
         for i in range(0, len(list_of_post_objects)):
@@ -695,7 +712,7 @@ class PyLive:
         log.info(f"Create HTML for {post} from {template_file}")
 
         log.debug("Create data dictionary")
-        data: dict[str, str] = {
+        data: dict[str, str | Post | None] = {
                 "title": post.title,
                 "date": post.printable_date,
                 "text": post.rendered_text,
@@ -724,7 +741,7 @@ class PyLive:
                 )
         template = environment.get_template("atom.xml")
 
-        blog: dict[str, str] = {}
+        blog: dict[str, str | None] = {}
 
         # Create list of blog posts that are not hidden
         unhidden_posts = [p for p in blogchain if not p.hidden]
