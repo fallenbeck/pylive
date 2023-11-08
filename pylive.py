@@ -734,7 +734,10 @@ class PyLive:
         blog["icon"] = "https://fallenbeck.com/favicon.ico"
         blog["generator"] = "Blogchain"
         blog["generator_uri"] = "https://fallenbeck.com/"
-        blog["date"] = unhidden_posts[0].isodate
+        if len(unhidden_posts) > 0:
+            blog["date"] = unhidden_posts[0].isodate
+        else:
+            blog["date"] = datetime.fromtimestamp(0).astimezone().isoformat()
 
         content = template.render({
             "blog": blog,
