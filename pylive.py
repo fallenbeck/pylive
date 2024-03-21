@@ -21,8 +21,9 @@ DEFAULT_LOCALE = "de_DE"
 
 
 # TODO: Use config file in current directory instead
-POSTSDIR = "posts"
-OUTPUTDIR = "out"
+POSTSDIR = "content"
+OUTPUTDIR = "public"
+STATICDIR = "static"
 TEMPLATEDIR = "templates"
 
 
@@ -35,7 +36,7 @@ EXTENSIONS = [".md"]
 OUTPUT_EXTENSION = ".html"
 
 # Set up logging
-log_formatter = logging.Formatter('%(message)s')
+log_formatter = logging.Formatter("%(message)s")
 # DEFAULT_LOGLEVEL = logging.WARNING
 DEFAULT_LOGLEVEL = logging.DEBUG
 log = logging.getLogger()
@@ -116,8 +117,7 @@ class Post:
     # Set by self.__validate_header()
     valid: bool = True
 
-    def __init__(self,
-                 full_filename: str):
+    def __init__(self, full_filename: str):
         """The initialization function awaits the markdown text of this blog
         post. This text will be parsed to get the meta information as well as
         the post's text.
@@ -170,9 +170,9 @@ class Post:
     def slug(self) -> str:
         if not self.__slug:
             self.__slug = slugify(
-                    os.path.splitext(self.basename)[0],
-                    to_lower=True,
-                    )
+                os.path.splitext(self.basename)[0],
+                to_lower=True,
+            )
         return self.__slug
 
     @property
@@ -217,8 +217,7 @@ class Post:
     def has_prev(self) -> bool:
         return self.__prev is not None
 
-    def __read_file(self,
-                    full_filename: str) -> str:
+    def __read_file(self, full_filename: str) -> str:
         """Read the contents from the specified file.
 
         :param full_filename:   Full path to (Markdown) file to read
@@ -227,12 +226,11 @@ class Post:
         :rtype:                 str
         """
         log.info(f"Read {full_filename}")
-        with open(full_filename, 'r') as f:
+        with open(full_filename, "r") as f:
             text = f.read()
         return text
 
-    def __segment(self,
-                  text: str) -> tuple[dict[str, str], str]:
+    def __segment(self, text: str) -> tuple[dict[str, str], str]:
         """Parse the raw text of the post and segment it into 2 elements.
         Return a 2-tuple containing the metadata dict as first element and the
         posts raw markdown text (without the header/preamble of the post) as
@@ -250,8 +248,7 @@ class Post:
         pattern = r"---\s*\n"
 
         # Remove empty segments and strip() leading and trailing whitespaces
-        segments = [s.strip() for s in re.split(pattern, text)
-                    if len(s.strip()) > 0]
+        segments = [s.strip() for s in re.split(pattern, text) if len(s.strip()) > 0]
 
         log.debug(f"Regex split, {len(segments)} segments")
         # if log.level == logging.DEBUG:
@@ -275,8 +272,7 @@ class Post:
         raw_text = segments[-1]
         return (meta_dict, raw_text)
 
-    def __parse_header(self,
-                       header: str) -> dict[str, str]:
+    def __parse_header(self, header: str) -> dict[str, str]:
         """Parse raw Markdown text and return the contents of the header as
         dictionary.
 
@@ -308,19 +304,22 @@ class Post:
         # Validate header
         if not self.__validate_header(result):
             self.valid = False
-            raise Exception(f"Invalid/insufficient header/preamble in "
-                            f"{self.filename}")
+            raise Exception(
+                f"Invalid/insufficient header/preamble in " f"{self.filename}"
+            )
         else:
             self.valid = True
 
         return result
 
-    def __validate_header(self,
-                          header: dict[str, str],
-                          required_keys: list[str] = ["title",
-                                                      "date",
-                                                      ],
-                          ) -> bool:
+    def __validate_header(
+        self,
+        header: dict[str, str],
+        required_keys: list[str] = [
+            "title",
+            "date",
+        ],
+    ) -> bool:
         """Validate header/preamble information.
 
         :param header:          Dict containing header/preamble data
@@ -347,11 +346,8 @@ class Post:
 
         return True
 
-    def __parse_attributes(self,
-                           meta: dict[str, str]):
-        """
-
-        """
+    def __parse_attributes(self, meta: dict[str, str]):
+        """ """
         log.info("Parse attributes from post header/preamble")
         # language
         for lang_key in ["lang", "language"]:
@@ -363,32 +359,29 @@ class Post:
         # date
         self.__date == self.__parse_date(meta["date"])
         if self.__date:
-            self.printable_date = self.__create_printable_date(self.date,
-                                                               self.lang)
+            self.printable_date = self.__create_printable_date(self.date, self.lang)
 
         # draft
         # TODO: Better evaluate "draft: true"
-        self.__draft = ("draft" in meta.keys())
+        self.__draft = "draft" in meta.keys()
         if self.__draft:
             log.debug("Mark as draft")
 
         # hidden
         # TODO: Better evaluate "hidden: true"
-        self.__hidden = ("hidden" in meta.keys())
+        self.__hidden = "hidden" in meta.keys()
         if self.__hidden:
             log.debug("Mark as hidden")
 
-    def __parse_date(self,
-                     prefix_date: str) -> datetime | None:
-        """
-        """
+    def __parse_date(self, prefix_date: str) -> datetime | None:
+        """ """
         log.debug(f"Create printable date from {prefix_date}")
 
         # Supported input formats
         supported_formats: list[str] = [
-                "%d.%m.%y",     # 01.01.23
-                "%d.%m.%Y",     # 01.01.2023
-                ]
+            "%d.%m.%y",  # 01.01.23
+            "%d.%m.%Y",  # 01.01.2023
+        ]
 
         dt: datetime | None = None
 
@@ -398,7 +391,7 @@ class Post:
             except Exception:
                 continue
             # except Exception as e:
-                # log.warning(f"Could not parse {fmt}: {e}")
+            # log.warning(f"Could not parse {fmt}: {e}")
 
             break
 
@@ -421,21 +414,18 @@ class Post:
             finally:
                 locale.setlocale(locale.LC_ALL, saved)
 
-    def __create_printable_date(self,
-                                date: datetime | None,
-                                locale: str | None = None) -> str:
-        """
-
-        """
+    def __create_printable_date(
+        self, date: datetime | None, locale: str | None = None
+    ) -> str:
+        """ """
         result: str = ""
         if locale:
             try:
-                with (self.setlocale(locale)):
+                with self.setlocale(locale):
                     if date:
                         result = date.strftime(FMT_DATE_OUTPUT)
             except Exception as e:
-                log.warning(f"Could not create printable date in {self.lang}: "
-                            f"{e}")
+                log.warning(f"Could not create printable date in {self.lang}: " f"{e}")
 
         if not result:
             if date:
@@ -444,8 +434,7 @@ class Post:
         log.info(f"Created from {date}: {result}")
         return result
 
-    def __render(self,
-                 text: str) -> str:
+    def __render(self, text: str) -> str:
         """Render the text of the post into HTML.
         Result is stored in self.hmtl variable
 
@@ -459,9 +448,13 @@ class Post:
 
         # Use fenced_code extension
         # see: https://python-markdown.github.io/extensions/fenced_code_blocks/
-        html = markdown.markdown(text,
-                                 extensions=['fenced_code'],
-                                 )
+        html = markdown.markdown(
+            text,
+            extensions=[
+                "fenced_code",
+                # 'codehilite',
+            ],
+        )
         # log.debug(html)
         return html
 
@@ -506,9 +499,7 @@ class Post:
         result["next"] = self.next
         result["prev"] = self.prev
 
-        to_display: list[str] = [
-                "author"
-                ]
+        to_display: list[str] = ["author"]
 
         for attribute in to_display:
             if attribute in self.meta:
@@ -518,7 +509,6 @@ class Post:
 
 
 class PyLive:
-
     # Path where the posts (in Markdown format) are stored
     posts_directory: str = ""
 
@@ -538,6 +528,8 @@ class PyLive:
             log.addHandler(stdout)
             log.setLevel(DEFAULT_LOGLEVEL)
 
+        # TODO: Read config file
+
         if not os.path.isdir(POSTSDIR):
             log.error(f"{POSTSDIR} is not a directory!")
             sys.exit(1)
@@ -546,11 +538,11 @@ class PyLive:
         self.main()
 
     def list_post_files_to_compile(
-            self,
-            path: str,
-            extensions: list[str] = [".md", ".markdown"],
-            ignore: list[str] = ["README", "TEMPLATE"],
-            ) -> list[str]:
+        self,
+        path: str,
+        extensions: list[str] = [".md", ".markdown"],
+        ignore: list[str] = ["README", "TEMPLATE"],
+    ) -> list[str]:
         """Return the list of post names to be compiled.
 
         This function will return a list of files existing in the post's
@@ -576,20 +568,20 @@ class PyLive:
         :return:            List of file names to be compiled
         :rtype:             list[str]
         """
-        log.info(f"Search for post files in \"{path}\"")
+        log.info(f'Search for post files in "{path}"')
         log.debug(f"Valid file extensions: {extensions}")
         log.debug(f"Filenames to ignore: {ignore}")
-        files = [f for f in os.listdir(path)
-                 if os.path.isfile(os.path.join(path, f))
-                 and os.path.splitext(f)[1] in extensions
-                 and os.path.splitext(f)[0] not in ignore
-                 ]
+        files = [
+            f
+            for f in os.listdir(path)
+            if os.path.isfile(os.path.join(path, f))
+            and os.path.splitext(f)[1] in extensions
+            and os.path.splitext(f)[0] not in ignore
+        ]
         log.info(f"{len(files)} post files found: {files}")
         return files
 
-    def create_post_object(self,
-                           path: str,
-                           filename: str) -> Post | None:
+    def create_post_object(self, path: str, filename: str) -> Post | None:
         """Create a Post object for a particular post.
 
         :param path:        Path where blog posts to compile are stored
@@ -606,11 +598,12 @@ class PyLive:
         except Exception as e:
             log.error(f"Could not create Post: {e}")
 
-    def create_blogchain(self,
-                         path: str,
-                         extensions: list[str],
-                         ignore_files: list[str],
-                         ) -> list[Post]:
+    def create_blogchain(
+        self,
+        path: str,
+        extensions: list[str],
+        ignore_files: list[str],
+    ) -> list[Post]:
         """Return list of post objects to be published sorted by the posts'
         publication date from newest to oldest (newest post is the first
         element in the list).
@@ -630,17 +623,20 @@ class PyLive:
         # Will hold the post objects
         list_of_post_objects: list[Post] = []
 
-        log.debug(f"Scan {path} for files with extensions {extensions}, "
-                  f"ignoring {ignore_files}")
+        log.debug(
+            f"Scan {path} for files with extensions {extensions}, "
+            f"ignoring {ignore_files}"
+        )
         post_files_to_compile = self.list_post_files_to_compile(
-                path=path,
-                extensions=extensions,
-                ignore=ignore_files,
-                )
+            path=path,
+            extensions=extensions,
+            ignore=ignore_files,
+        )
 
         for post_file in post_files_to_compile:
-            post = self.create_post_object(path=self.posts_directory,
-                                           filename=post_file)
+            post = self.create_post_object(
+                path=self.posts_directory, filename=post_file
+            )
 
             # Ignore post objects that are None or marked as draft
             # (when an error has occurred during Post object creation, e.g.
@@ -654,12 +650,12 @@ class PyLive:
         log.debug("Sort list of posts to publish by date")
         # Sorted list uses the Post's built-in comparison functions.
         # You could also achieve the same by using "key=lambda p: p.date"
-        list_of_post_objects = sorted(list_of_post_objects,
-                                      reverse=True)
+        list_of_post_objects = sorted(list_of_post_objects, reverse=True)
 
         # Build the chain of non-hidden posts
-        log.debug(f"Chain-link non-hidden posts ({len(list_of_post_objects)}"
-                  f" total posts)")
+        log.debug(
+            f"Chain-link non-hidden posts ({len(list_of_post_objects)}" f" total posts)"
+        )
 
         # Keep track of post objects when building the chain
         next_post: Post | None = None
@@ -695,10 +691,11 @@ class PyLive:
 
         return list_of_post_objects
 
-    def create_html(self,
-                    post: Post,
-                    template_file: str,
-                    ) -> str:
+    def create_html(
+        self,
+        post: Post,
+        template_file: str,
+    ) -> str:
         """Create the contents of an HTML file for a particular post using a
         particular template.
 
@@ -713,32 +710,28 @@ class PyLive:
 
         log.debug("Create data dictionary")
         data: dict[str, str | Post | None] = {
-                "title": post.title,
-                "date": post.printable_date,
-                "text": post.rendered_text,
-                "outfile": post.outfile,
-                "next": post.next,
-                "prev": post.prev,
-                }
+            "title": post.title,
+            "date": post.printable_date,
+            "text": post.rendered_text,
+            "outfile": post.outfile,
+            "next": post.next,
+            "prev": post.prev,
+        }
 
         log.debug("Create Jinja2 environment and load template")
-        environment = Environment(
-                loader=FileSystemLoader(TEMPLATEDIR)
-                )
+        environment = Environment(loader=FileSystemLoader(TEMPLATEDIR))
         template = environment.get_template(template_file)
 
         log.debug("Render content")
         content = template.render(data)
         return content
 
-    def create_atom_feed(self,
-                         blogchain: list[Post],
-                         ) -> str:
-        """Create Atom Feed.
-        """
-        environment = Environment(
-                loader=FileSystemLoader(TEMPLATEDIR)
-                )
+    def create_atom_feed(
+        self,
+        blogchain: list[Post],
+    ) -> str:
+        """Create Atom Feed."""
+        environment = Environment(loader=FileSystemLoader(TEMPLATEDIR))
         template = environment.get_template("atom.xml")
 
         blog: dict[str, str | None] = {}
@@ -761,10 +754,12 @@ class PyLive:
         else:
             blog["date"] = datetime.fromtimestamp(0).astimezone().isoformat()
 
-        content = template.render({
-            "blog": blog,
-            "posts": unhidden_posts,
-            })
+        content = template.render(
+            {
+                "blog": blog,
+                "posts": unhidden_posts,
+            }
+        )
 
         return content
 
@@ -773,10 +768,10 @@ class PyLive:
         files to disk.
         """
         blogchain = self.create_blogchain(
-                path=self.posts_directory,
-                extensions=self.post_extensions,
-                ignore_files=self.ignore_filenames,
-                )
+            path=self.posts_directory,
+            extensions=self.post_extensions,
+            ignore_files=self.ignore_filenames,
+        )
 
         log.warning(pprint.pformat(blogchain))
 
@@ -786,10 +781,7 @@ class PyLive:
         for post in blogchain:
             log.info(pprint.pformat(post.to_dict()))
 
-            html_contents = self.create_html(
-                    post=post,
-                    template_file="index.html"
-                    )
+            html_contents = self.create_html(post=post, template_file="index.html")
 
             with open(os.path.join(OUTPUTDIR, post.outfile), "w") as f:
                 f.write(html_contents)
@@ -804,5 +796,5 @@ class PyLive:
             f.write(self.create_atom_feed(blogchain))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pyl = PyLive()
