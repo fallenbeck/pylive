@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 from datetime import datetime
+import argparse
 import locale
 import logging
 import markdown
 import os
+import pprint
 import re
 import pprint
 import sys
 import threading
+import toml
 from contextlib import contextmanager
 from jinja2 import Environment, FileSystemLoader
 from slugify import UniqueSlugify
@@ -20,8 +23,8 @@ from slugify import UniqueSlugify
 DEFAULT_LOCALE = "de_DE"
 
 
-# TODO: Use config file in current directory instead
-POSTSDIR = "content"
+# Default directories
+CONTENTDIR = "content"
 OUTPUTDIR = "public"
 STATICDIR = "static"
 TEMPLATEDIR = "templates"
@@ -31,14 +34,16 @@ TEMPLATEDIR = "templates"
 # the "-" in %-d will remove the leading 0 (if any)
 FMT_DATE_OUTPUT = "%A, %-d. %B %Y"
 
+
 IGNOREFILES = ["README", "TEMPLATE"]  # , "helloworld"]
 EXTENSIONS = [".md"]
 OUTPUT_EXTENSION = ".html"
 
+
 # Set up logging
 log_formatter = logging.Formatter("%(message)s")
 # DEFAULT_LOGLEVEL = logging.WARNING
-DEFAULT_LOGLEVEL = logging.DEBUG
+DEFAULT_LOGLEVEL = logging.WARNING
 log = logging.getLogger()
 log.setLevel(DEFAULT_LOGLEVEL)
 
@@ -515,6 +520,15 @@ class PyLive:
     ignore_filenames: list[str] = IGNOREFILES
     post_extensions: list[str] = EXTENSIONS
 
+    # Contents of the configuration file
+    config: dict = {}
+
+    # directories (initialize with default values)
+    contentdir: str = CONTENTDIR
+    outputdir: str = OUTPUTDIR
+    staticdir: str = STATICDIR
+    templatedir: str = TEMPLATEDIR
+
     def __init__(self):
         """Initialize pylive.
 
@@ -528,14 +542,110 @@ class PyLive:
             log.addHandler(stdout)
             log.setLevel(DEFAULT_LOGLEVEL)
 
-        # TODO: Read config file
+        # if not os.path.isdir(POSTSDIR):
+        #     log.error(f"{POSTSDIR} is not a directory!")
+        #     sys.exit(1)
 
-        if not os.path.isdir(POSTSDIR):
-            log.error(f"{POSTSDIR} is not a directory!")
+    def argparse(self):
+        """Parse arguments retrieved from the command line (sys.argv)."""
+        description = """Create static HTML files"""
+        epilog = "{my_name}, Python {py_version_maj}.{py_version_min}.{py_version_tiny}".format(
+            my_name=self.__class__.__name__,
+            py_version_maj=sys.version_info[0],
+            py_version_min=sys.version_info[1],
+            py_version_tiny=sys.version_info[2],
+        )
+
+        parser = argparse.ArgumentParser(
+            prog=self.__class__.__name__,
+            description=description,
+            epilog="{epilog}".format(epilog=epilog),
+            conflict_handler="resolve",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+
+        # Define arguments for the top-level parser
+        verbositygroup = parser.add_mutually_exclusive_group()
+        verbositygroup.add_argument(
+            "-v",
+            "--verbose",
+            help="""Make output more verbose (the more -v's the more verbose the
+            output will be)""",
+            action="count",
+            default=0,
+        )
+        verbositygroup.add_argument(
+            "-q",
+            "--quiet",
+            help="Print only error messages and suppress any other output",
+            action="store_true",
+            default=False,
+        )
+
+        parser.add_argument(
+            "-c",
+            "--config",
+            help="Use custom config file",
+            default="pylive.rc",
+        )
+
+        try:
+            results = parser.parse_args(sys.argv[1:])
+        except Exception as e:
+            print(f"Could not parse arguments: {e}", file=sys.stderr)
             sys.exit(1)
-        self.posts_directory = POSTSDIR
 
-        self.main()
+        # Set verbosity
+        # Value     Name
+        # 50        CRITICAL, FATAL
+        # 40        ERROR
+        # 30        WARNING
+        # 20        INFO
+        # 10        DEBUG
+        # 0         NOTSET
+        if results.quiet:
+            log.setLevel(logging.CRITICAL)
+        else:
+            # if results.verbose:
+            verbosity: int = DEFAULT_LOGLEVEL - (results.verbose * 10)
+            loglevel: int = max(verbosity, 10)
+            log.setLevel(loglevel)
+            log.debug(f"Set log level to {loglevel}")
+
+        # read config file
+        self.config = self.read_config_file(results.config)
+
+    def read_config_file(
+        self,
+        filename: str,
+    ) -> dict:
+        """Read the configuration file and return contents as dict.
+
+        :param filename:    Filename to load
+        :type filename:     str
+        :return:            Configuration settings
+        :rtype:             dict
+        """
+        log.debug(f"Load config file {filename}")
+
+        try:
+            with open(filename, "r") as f:
+                self.config = toml.load(f)
+
+            log.debug(f"Configuration:\n{pprint.pformat(self.config)}")
+
+        except Exception as e:
+            log.critical(f"Could not read config file: {e}")
+            sys.exit(2)
+
+        log.debug("Parse configuration file")
+        self.contentdir = self.config.get("dirs", {}).get("content", CONTENTDIR)
+        self.outputdir = self.config.get("dirs", {}).get("output", OUTPUTDIR)
+        self.staticdir = self.config.get("dirs", {}).get("static", STATICDIR)
+        self.templatedir = self.config.get("dirs", {}).get("templates", TEMPLATEDIR)
+
+        # Return self.config dictionary
+        return self.config
 
     def list_post_files_to_compile(
         self,
@@ -634,9 +744,7 @@ class PyLive:
         )
 
         for post_file in post_files_to_compile:
-            post = self.create_post_object(
-                path=self.posts_directory, filename=post_file
-            )
+            post = self.create_post_object(path=self.contentdir, filename=post_file)
 
             # Ignore post objects that are None or marked as draft
             # (when an error has occurred during Post object creation, e.g.
@@ -719,7 +827,7 @@ class PyLive:
         }
 
         log.debug("Create Jinja2 environment and load template")
-        environment = Environment(loader=FileSystemLoader(TEMPLATEDIR))
+        environment = Environment(loader=FileSystemLoader(self.templatedir))
         template = environment.get_template(template_file)
 
         log.debug("Render content")
@@ -731,7 +839,11 @@ class PyLive:
         blogchain: list[Post],
     ) -> str:
         """Create Atom Feed."""
-        environment = Environment(loader=FileSystemLoader(TEMPLATEDIR))
+        if self.config.get("feed", {}).get("enabled", "true").lower() == "false":
+            log.info(f"Creation of atom feed disabled in config file")
+            return ""
+
+        environment = Environment(loader=FileSystemLoader(self.templatedir))
         template = environment.get_template("atom.xml")
 
         blog: dict[str, str | None] = {}
@@ -739,16 +851,35 @@ class PyLive:
         # Create list of blog posts that are not hidden
         unhidden_posts = [p for p in blogchain if not p.hidden]
 
-        # TODO: Read from config file
-        blog["title"] = "On the Heights of Despair"
-        blog["subtitle"] = "The very long journey of a man called me."
-        blog["author"] = "Niels Fallenbeck"
-        blog["id"] = "https://fallenbeck.com/"
-        blog["url"] = "https://fallenbeck.com/"
-        blog["feedurl"] = "https://fallenbeck.com/atom.xml"
-        blog["icon"] = "https://fallenbeck.com/favicon.ico"
-        blog["generator"] = "Blogchain"
-        blog["generator_uri"] = "https://fallenbeck.com/"
+        # Read values from config file
+        title = self.config.get("site", {}).get("title", "Hello, world.")
+        subtitle = self.config.get("site", {}).get("subtitle", "")
+        author = self.config.get("site", {}).get("author", "John Doe")
+        url = self.config.get("site", {}).get("url", "")
+        feedurl = url + "/" + self.config.get("feed", {}).get("file", "index.xml")
+        favicon = url + "/" + self.config.get("feed", {}).get("site", "favicon.ico")
+        generator = "Blogchain"
+
+        blog["title"] = title
+        blog["subtitle"] = subtitle
+        blog["author"] = author
+        blog["id"] = url
+        blog["url"] = url
+        blog["feedurl"] = feedurl
+        blog["icon"] = favicon
+        blog["generator"] = generator
+        blog["generator_uri"] = url
+
+        # blog["title"] = "On the Heights of Despair"
+        # blog["subtitle"] = "The very long journey of a man called me."
+        # blog["author"] = "Niels Fallenbeck"
+        # blog["id"] = "https://fallenbeck.com/"
+        # blog["url"] = "https://fallenbeck.com/"
+        # blog["feedurl"] = "https://fallenbeck.com/atom.xml"
+        # blog["icon"] = "https://fallenbeck.com/favicon.ico"
+        # blog["generator"] = "Blogchain"
+        # blog["generator_uri"] = "https://fallenbeck.com/"
+
         if len(unhidden_posts) > 0:
             blog["date"] = unhidden_posts[0].isodate
         else:
@@ -768,7 +899,7 @@ class PyLive:
         files to disk.
         """
         blogchain = self.create_blogchain(
-            path=self.posts_directory,
+            path=self.contentdir,
             extensions=self.post_extensions,
             ignore_files=self.ignore_filenames,
         )
@@ -798,3 +929,5 @@ class PyLive:
 
 if __name__ == "__main__":
     pyl = PyLive()
+    pyl.argparse()
+    pyl.main()
