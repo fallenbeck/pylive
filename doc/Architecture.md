@@ -1,6 +1,6 @@
 # Architecture
 
-The basic idea is to have 
+The basic idea is to have ...
 
 ## Components
 
