@@ -925,8 +925,11 @@ class PyLive:
                     f.write(html_contents)
                 index_written = True
 
-        with open(os.path.join(OUTPUTDIR, "atom.xml"), "w") as f:
-            f.write(self.create_atom_feed(blogchain))
+        # Create Feed
+        if self.config.get("feed", {}).get("enabled", "false").lower() == "true":
+            feed_filename: str = self.config.get("feed", {}).get("file", "index.xml")
+            with open(os.path.join(OUTPUTDIR, feed_filename), "w") as f:
+                f.write(self.create_atom_feed(blogchain))
 
 
 if __name__ == "__main__":
