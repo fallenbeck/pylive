@@ -844,7 +844,9 @@ class PyLive:
             return ""
 
         environment = Environment(loader=FileSystemLoader(self.templatedir))
-        template = environment.get_template("atom.xml")
+        template = environment.get_template(
+            self.config.get("templates", {}).get("feed", "feed.xml")
+        )
 
         blog: dict[str, str | None] = {}
 
