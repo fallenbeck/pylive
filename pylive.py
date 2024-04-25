@@ -256,6 +256,8 @@ class Post:
         segments = [s.strip() for s in re.split(pattern, text) if len(s.strip()) > 0]
 
         log.debug(f"Regex split, {len(segments)} segments")
+        log.debug(segments)
+
         # if log.level == logging.DEBUG:
         #     snr = 0
         #     for segment in segments:
@@ -273,8 +275,10 @@ class Post:
             raise Exception(msg)
 
         # Prse the meta information from the header/preamble
-        meta_dict: dict[str, str] = self.__parse_header(segments[-2])
-        raw_text = segments[-1]
+        # meta_dict: dict[str, str] = self.__parse_header(segments[-2])
+        meta_dict: dict[str, str] = self.__parse_header(segments[0])
+        # raw_text = segments[-1]
+        raw_text = "\n".join(segments[1:]).strip()
         return (meta_dict, raw_text)
 
     def __parse_header(self, header: str) -> dict[str, str]:
